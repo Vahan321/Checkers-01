@@ -1,2 +1,3 @@
-# Checkers-01
-Checkers-01
+Գնահատիր խաղը
+Rate the game
+Оцените игру
