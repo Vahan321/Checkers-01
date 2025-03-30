@@ -27,6 +27,31 @@
             font-size: 2.5em;
         }
 
+        .language-selector {
+            margin-bottom: 20px;
+        }
+
+        .language-selector button {
+            padding: 8px 15px;
+            margin: 0 5px;
+            background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+
+        .language-selector button:hover {
+            background: linear-gradient(135deg, #2980b9 0%, #3498db 100%);
+        }
+
+        .language-selector button.active {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            box-shadow: 0 0 5px rgba(0,0,0,0.2) inset;
+        }
+
         .game-mode-buttons {
             display: flex;
             gap: 20px;
@@ -272,25 +297,31 @@
     </style>
 </head>
 <body>
-    <h1>Շաշկի</h1>
+    <h1 id="game-title">Շաշկի</h1>
+    
+    <div class="language-selector">
+        <button id="lang-hy" class="active">Հայերեն</button>
+        <button id="lang-en">English</button>
+        <button id="lang-ru">Русский</button>
+    </div>
     
     <div class="game-mode-buttons">
-        <button id="play-with-friend">Խաղալ ընկերոջ հետ</button>
-        <button id="play-with-ai">Խաղալ AI-ի դեմ</button>
+        <button id="play-with-friend"><span id="play-friend-text">Խաղալ ընկերոջ հետ</span></button>
+        <button id="play-with-ai"><span id="play-ai-text">Խաղալ AI-ի դեմ</span></button>
     </div>
     <div class="game-container">
         <div class="board"></div>
         <div class="game-info">
-            <div class="player-turn">Խաղացողի հերթը: <span id="current-player">Կարմիր</span></div>
+            <div class="player-turn"><span id="turn-text">Խաղացողի հերթը:</span> <span id="current-player">Կարմիր</span></div>
             <div class="capture-count">
-                <div>Կարմիր զինվորներ: <span id="red-count">12</span></div>
-                <div>Սև զինվորներ: <span id="black-count">12</span></div>
+                <div><span id="red-pieces-text">Կարմիր զինվորներ:</span> <span id="red-count">12</span></div>
+                <div><span id="black-pieces-text">Սև զինվորներ:</span> <span id="black-count">12</span></div>
             </div>
-            <button id="restart-btn">Սկսել նոր խաղ</button>
+            <button id="restart-btn"><span id="restart-text">Սկսել նոր խաղ</span></button>
         </div>
     </div>
 
-    <div class="author-credit">Խաղի հեղինակ՝ Սողբաթյան Վահան</div>
+    <div class="author-credit"><span id="author-text">Խաղի հեղինակ՝ Սողբաթյան Վահան</span></div>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -300,6 +331,65 @@
             let forcedCapture = false;
             let forcedCapturePieces = [];
             let gameMode = 'friend'; // 'friend' or 'ai'
+            let currentLanguage = 'hy'; // 'hy', 'en', 'ru'
+
+            // Translations
+            const translations = {
+                'hy': {
+                    'gameTitle': 'Շաշկի',
+                    'playFriend': 'Խաղալ ընկերոջ հետ',
+                    'playAI': 'Խաղալ AI-ի դեմ',
+                    'turn': 'Խաղացողի հերթը:',
+                    'redPieces': 'Կարմիր զինվորներ:',
+                    'blackPieces': 'Սև զինվորներ:',
+                    'restart': 'Սկսել նոր խաղ',
+                    'author': 'Խաղի հեղինակ՝ Սողբաթյան Վահան',
+                    'red': 'Կարմիր',
+                    'black': 'Սև',
+                    'friendAlert': 'Դուք խաղում եք ընկերոջ հետ։ Կարմիրները սկսում են։',
+                    'aiAlert': 'Դուք խաղում եք AI-ի դեմ։ Կարմիրները սկսում են։',
+                    'blackWins': 'Սևերը հաղթեցին!',
+                    'redWins': 'Կարմիրները հաղթեցին!',
+                    'noMovesBlack': 'Սևերը հաղթեցին, քանի որ հակառակորդը չունի քայլեր!',
+                    'noMovesRed': 'Կարմիրները հաղթեցին, քանի որ հակառակորդը չունի քայլեր!'
+                },
+                'en': {
+                    'gameTitle': 'Checkers',
+                    'playFriend': 'Play with friend',
+                    'playAI': 'Play against AI',
+                    'turn': 'Player turn:',
+                    'redPieces': 'Red pieces:',
+                    'blackPieces': 'Black pieces:',
+                    'restart': 'Start new game',
+                    'author': 'Game author: Vahan Soghbatyan',
+                    'red': 'Red',
+                    'black': 'Black',
+                    'friendAlert': 'You are playing with a friend. Red starts first.',
+                    'aiAlert': 'You are playing against AI. Red starts first.',
+                    'blackWins': 'Black wins!',
+                    'redWins': 'Red wins!',
+                    'noMovesBlack': 'Black wins because opponent has no moves!',
+                    'noMovesRed': 'Red wins because opponent has no moves!'
+                },
+                'ru': {
+                    'gameTitle': 'Шашки',
+                    'playFriend': 'Играть с другом',
+                    'playAI': 'Играть против ИИ',
+                    'turn': 'Ход игрока:',
+                    'redPieces': 'Красные шашки:',
+                    'blackPieces': 'Чёрные шашки:',
+                    'restart': 'Новая игра',
+                    'author': 'Автор игры: Согбатян Ваан',
+                    'red': 'Красные',
+                    'black': 'Чёрные',
+                    'friendAlert': 'Вы играете с другом. Красные начинают первыми.',
+                    'aiAlert': 'Вы играете против ИИ. Красные начинают первыми.',
+                    'blackWins': 'Чёрные победили!',
+                    'redWins': 'Красные победили!',
+                    'noMovesBlack': 'Чёрные победили, так как у противника нет ходов!',
+                    'noMovesRed': 'Красные победили, так как у противника нет ходов!'
+                }
+            };
 
             const boardElement = document.querySelector('.board');
             const currentPlayerElement = document.getElementById('current-player');
@@ -309,12 +399,27 @@
             const playWithFriendBtn = document.getElementById('play-with-friend');
             const playWithAIBtn = document.getElementById('play-with-ai');
 
+            // Language elements
+            const gameTitleElement = document.getElementById('game-title');
+            const playFriendTextElement = document.getElementById('play-friend-text');
+            const playAITextElement = document.getElementById('play-ai-text');
+            const turnTextElement = document.getElementById('turn-text');
+            const redPiecesTextElement = document.getElementById('red-pieces-text');
+            const blackPiecesTextElement = document.getElementById('black-pieces-text');
+            const restartTextElement = document.getElementById('restart-text');
+            const authorTextElement = document.getElementById('author-text');
+
+            // Language buttons
+            const langHyBtn = document.getElementById('lang-hy');
+            const langEnBtn = document.getElementById('lang-en');
+            const langRuBtn = document.getElementById('lang-ru');
+
             // Initialize the board
             function initializeBoard() {
                 boardElement.innerHTML = '';
                 board = Array(64).fill(null);
                 currentPlayer = 'red';
-                currentPlayerElement.textContent = 'Կարմիր';
+                currentPlayerElement.textContent = translations[currentLanguage]['red'];
                 forcedCapture = false;
                 forcedCapturePieces = [];
 
@@ -554,7 +659,7 @@
                 forcedCapture = false;
                 forcedCapturePieces = [];
                 currentPlayer = currentPlayer === 'red' ? 'black' : 'red';
-                currentPlayerElement.textContent = currentPlayer === 'red' ? 'Կարմիր' : 'Սև';
+                currentPlayerElement.textContent = translations[currentLanguage][currentPlayer];
 
                 // Check for forced captures for the next player
                 const pieces = [];
@@ -584,9 +689,9 @@
                 const blackPieces = document.querySelectorAll('.piece.black').length;
                 
                 if (redPieces === 0) {
-                    setTimeout(() => alert('Սևերը հաղթեցին!'), 100);
+                    setTimeout(() => alert(translations[currentLanguage]['blackWins']), 100);
                 } else if (blackPieces === 0) {
-                    setTimeout(() => alert('Կարմիրները հաղթեցին!'), 100);
+                    setTimeout(() => alert(translations[currentLanguage]['redWins']), 100);
                 } else {
                     // Check if current player has any valid moves
                     let hasValidMoves = false;
@@ -625,7 +730,7 @@
                     }
 
                     if (!hasValidMoves) {
-                        setTimeout(() => alert(`${currentPlayer === 'red' ? 'Սևերը' : 'Կարմիրները'} հաղթեցին, քանի որ հակառակորդը չունի քայլեր!`), 100);
+                        setTimeout(() => alert(translations[currentLanguage][currentPlayer === 'red' ? 'noMovesBlack' : 'noMovesRed']), 100);
                     }
                 }
             }
@@ -724,19 +829,65 @@
                 return captures;
             }
 
+            // Update UI language
+            function updateLanguage(lang) {
+                currentLanguage = lang;
+                
+                // Update active language button
+                langHyBtn.classList.remove('active');
+                langEnBtn.classList.remove('active');
+                langRuBtn.classList.remove('active');
+                
+                if (lang === 'hy') langHyBtn.classList.add('active');
+                if (lang === 'en') langEnBtn.classList.add('active');
+                if (lang === 'ru') langRuBtn.classList.add('active');
+                
+                // Update all text elements
+                gameTitleElement.textContent = translations[lang]['gameTitle'];
+                playFriendTextElement.textContent = translations[lang]['playFriend'];
+                playAITextElement.textContent = translations[lang]['playAI'];
+                turnTextElement.textContent = translations[lang]['turn'];
+                redPiecesTextElement.textContent = translations[lang]['redPieces'];
+                blackPiecesTextElement.textContent = translations[lang]['blackPieces'];
+                restartTextElement.textContent = translations[lang]['restart'];
+                authorTextElement.textContent = translations[lang]['author'];
+                
+                // Update current player text
+                currentPlayerElement.textContent = translations[lang][currentPlayer];
+            }
+
             // Event listeners
             restartButton.addEventListener('click', initializeBoard);
 
             playWithFriendBtn.addEventListener('click', () => {
                 gameMode = 'friend';
                 initializeBoard();
-                alert('Դուք խաղում եք ընկերոջ հետ։ Կարմիրները սկսում են։');
+                alert(translations[currentLanguage]['friendAlert']);
             });
 
             playWithAIBtn.addEventListener('click', () => {
                 gameMode = 'ai';
                 initializeBoard();
-                alert('Դուք խաղում եք AI-ի դեմ։ Կարմիրները սկսում են։');
+                alert(translations[currentLanguage]['aiAlert']);
+            });
+
+            // Language switchers
+            langHyBtn.addEventListener('click', () => {
+                if (currentLanguage !== 'hy') {
+                    updateLanguage('hy');
+                }
+            });
+
+            langEnBtn.addEventListener('click', () => {
+                if (currentLanguage !== 'en') {
+                    updateLanguage('en');
+                }
+            });
+
+            langRuBtn.addEventListener('click', () => {
+                if (currentLanguage !== 'ru') {
+                    updateLanguage('ru');
+                }
             });
 
             // Initialize the game
