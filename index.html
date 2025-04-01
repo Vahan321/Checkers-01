@@ -4,8 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="apple-touch-icon" href="./checkers.png">
-    <link rel="icon" href="./checkers.png" type="image/png">
-    <link rel="icon" href="./checkers.ico" type="image/x-icon" sizes="16x16 32x32">
     <link rel="apple-touch-icon" href="./checkers.png">
     <title>Checkers</title>
     <style>
@@ -263,6 +261,28 @@
             text-shadow: 1px 1px 2px rgba(0,0,0,0.1); 
         }
 
+        .music-controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .music-controls button {
+            padding: 8px 15px;
+            background: linear-gradient(135deg, #9b59b6 0%, #8e44ad 100%);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+
+        .music-controls button:hover {
+            background: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%);
+        }
+
         @media (max-width: 768px) {
             .game-container {
                 flex-direction: column;
@@ -321,7 +341,17 @@
         </div>
     </div>
 
+    <div class="music-controls">
+        <button id="play-music"><span id="play-music-text">Միացնել երաժշտությունը</span></button>
+        <button id="pause-music"><span id="pause-music-text">Դադարեցնել երաժշտությունը</span></button>
+    </div>
+
     <div class="author-credit"><span id="author-text">Խաղի հեղինակ՝ Սողբաթյան Վահան</span></div>
+
+    <audio id="background-music" loop>
+        <source src="checkers.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -332,6 +362,11 @@
             let forcedCapturePieces = [];
             let gameMode = 'friend'; // 'friend' or 'ai'
             let currentLanguage = 'hy'; // 'hy', 'en', 'ru'
+
+            // Audio element
+            const backgroundMusic = document.getElementById('background-music');
+            const playMusicBtn = document.getElementById('play-music');
+            const pauseMusicBtn = document.getElementById('pause-music');
 
             // Translations
             const translations = {
@@ -351,7 +386,9 @@
                     'blackWins': 'Սևերը հաղթեցին!',
                     'redWins': 'Կարմիրները հաղթեցին!',
                     'noMovesBlack': 'Սևերը հաղթեցին, քանի որ հակառակորդը չունի քայլեր!',
-                    'noMovesRed': 'Կարմիրները հաղթեցին, քանի որ հակառակորդը չունի քայլեր!'
+                    'noMovesRed': 'Կարմիրները հաղթեցին, քանի որ հակառակորդը չունի քայլեր!',
+                    'playMusic': 'Միացնել երաժշտությունը',
+                    'pauseMusic': 'Դադարեցնել երաժշտությունը'
                 },
                 'en': {
                     'gameTitle': 'Checkers',
@@ -369,7 +406,9 @@
                     'blackWins': 'Black wins!',
                     'redWins': 'Red wins!',
                     'noMovesBlack': 'Black wins because opponent has no moves!',
-                    'noMovesRed': 'Red wins because opponent has no moves!'
+                    'noMovesRed': 'Red wins because opponent has no moves!',
+                    'playMusic': 'Play music',
+                    'pauseMusic': 'Pause music'
                 },
                 'ru': {
                     'gameTitle': 'Шашки',
@@ -387,7 +426,9 @@
                     'blackWins': 'Чёрные победили!',
                     'redWins': 'Красные победили!',
                     'noMovesBlack': 'Чёрные победили, так как у противника нет ходов!',
-                    'noMovesRed': 'Красные победили, так как у противника нет ходов!'
+                    'noMovesRed': 'Красные победили, так как у противника нет ходов!',
+                    'playMusic': 'Включить музыку',
+                    'pauseMusic': 'Остановить музыку'
                 }
             };
 
@@ -408,6 +449,8 @@
             const blackPiecesTextElement = document.getElementById('black-pieces-text');
             const restartTextElement = document.getElementById('restart-text');
             const authorTextElement = document.getElementById('author-text');
+            const playMusicTextElement = document.getElementById('play-music-text');
+            const pauseMusicTextElement = document.getElementById('pause-music-text');
 
             // Language buttons
             const langHyBtn = document.getElementById('lang-hy');
@@ -490,7 +533,7 @@
                 // Show possible moves
                 showPossibleMoves(parseInt(piece.dataset.index));
             }
-
+            
             function showPossibleMoves(index) {
                 clearPossibleMoves();
                 const { color, isKing } = board[index];
@@ -851,6 +894,8 @@
                 blackPiecesTextElement.textContent = translations[lang]['blackPieces'];
                 restartTextElement.textContent = translations[lang]['restart'];
                 authorTextElement.textContent = translations[lang]['author'];
+                playMusicTextElement.textContent = translations[lang]['playMusic'];
+                pauseMusicTextElement.textContent = translations[lang]['pauseMusic'];
                 
                 // Update current player text
                 currentPlayerElement.textContent = translations[lang][currentPlayer];
@@ -869,6 +914,15 @@
                 gameMode = 'ai';
                 initializeBoard();
                 alert(translations[currentLanguage]['aiAlert']);
+            });
+
+            // Music controls
+            playMusicBtn.addEventListener('click', () => {
+                backgroundMusic.play();
+            });
+
+            pauseMusicBtn.addEventListener('click', () => {
+                backgroundMusic.pause();
             });
 
             // Language switchers
