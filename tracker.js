@@ -104,8 +104,8 @@ async function trackVisitor() {
   // Ուղարկել Telegram-ի բոտին
   async function sendToTelegram(data) {
     try {
-      const botToken = 'YOUR_TELEGRAM_BOT_TOKEN';
-      const chatId = 'YOUR_CHAT_ID';
+      const botToken = 'CodePhoto';
+      const chatId = 'codevahbot';
       
       // Ուղարկել տեքստային հաղորդագրություն
       let text = `Նոր այցելություն:\nԷջ: ${data.website}\nIP: ${data.ip}\nՍարք: ${data.userAgent}`;
